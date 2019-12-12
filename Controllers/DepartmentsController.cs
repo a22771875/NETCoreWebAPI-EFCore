@@ -62,26 +62,7 @@ namespace project.Controllers
                 return BadRequest();
             }
 
-            department.DateModified = DateTime.Now;
-            _context.Update(department);
-
-            //_context.Entry(department).State = EntityState.Modified;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!DepartmentExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
-            }
+            var count = await _context.Database.ExecuteSqlInterpolatedAsync($"EXECUTE Department_Update {department.DepartmentId},{department.Name},{department.Budget},{department.StartDate},{department.InstructorId},{department.RowVersion}");
 
             return NoContent();
         }
@@ -92,8 +73,13 @@ namespace project.Controllers
         [HttpPost]
         public async Task<ActionResult<Department>> PostDepartment(Department department)
         {
-            _context.Department.Add(department);
-            await _context.SaveChangesAsync();
+            //_context.Department.Add(department);
+            //await _context.SaveChangesAsync();
+
+            department.DepartmentId = (await _context.Department.FromSqlInterpolated(
+                                               $"EXEC [dbo].[Department_Insert] {department.Name}, {department.Budget}, {department.StartDate}, {department.InstructorId}; ")
+                                           .Select(x => x.DepartmentId)
+                                           .ToListAsync()).Single();
 
             return CreatedAtAction("GetDepartment", new { id = department.DepartmentId }, department);
         }
@@ -109,9 +95,12 @@ namespace project.Controllers
             }
 
             //_context.Department.Remove(department);
-            department.IsDeleted = true;
-            _context.Update(department);
-            await _context.SaveChangesAsync();
+            //department.IsDeleted = true;
+            //_context.Update(department);
+            //await _context.SaveChangesAsync();
+
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"EXEC [dbo].[Department_Delete] {department.DepartmentId}, {department.RowVersion}");
 
             return department;
         }
